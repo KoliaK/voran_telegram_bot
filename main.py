@@ -4,7 +4,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from dotenv import load_dotenv
 
 #scripts
-from handlers import start, help, echo_handler
+from handlers import start, help, echo_handler, get_crypto_price
 
 # gets credentials from .env file
 load_dotenv()
@@ -23,6 +23,7 @@ if __name__ == '__main__':
     # add command handlers
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('help', help))
+    application.add_handler(CommandHandler('crypto', get_crypto_price))
     # this one filters TEXT and ensures COMMAND is not filtered by using ~
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), echo_handler))
     
