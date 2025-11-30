@@ -1,7 +1,10 @@
 import httpx
+import asyncio # this is necessary for sleep, wait, and gather tools
+import os
 from telegram import Update
 from telegram.ext import ContextTypes
-import asyncio # needed for echo_handler, not telegram-bot functions.
+
+
 
 # no need to import AsyncIO module since ApplicationBuilder is built on top of async  
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -25,6 +28,8 @@ async def echo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.effective_message.reply_text(f'Processed: {text}')
     else:
         await update.effective_message.reply_text(f'I heard: {text}')
+        # prints the chat ID in the terminal
+        print(f"Your Chat ID is: {update.effective_chat.id}")
 
 async def get_crypto_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # validate if user types a valid crypto currency name
@@ -47,3 +52,8 @@ async def get_crypto_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     except Exception as e:
         print(f'ERROR: {e}')
         await update.effective_message.reply_text('⚠️ Error fetching data.')
+
+async def crypto_alert(context: ContextTypes.DEFAULT_TYPE) -> None:
+    # no need to import dotenv and call load_dotenv() again here because it's already done in main.py
+    chat_id = os.getenv('MY_CHAT_ID')
+    await context.bot.send_message(chat_id=chat_id, text='🔔 Voran Alert: Checking systems...')
