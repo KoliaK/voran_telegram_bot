@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 #scripts
 from handlers import start, help, echo_handler, get_crypto_price, crypto_alert
 
+
 # gets credentials from .env file
 load_dotenv()
 bot_api_token = os.getenv('TELEGRAM_TOKEN')
@@ -17,6 +18,8 @@ logging.basicConfig(
 )
 
 if __name__ == '__main__':
+    from db import init_db
+    init_db()
     # build the app
     application = ApplicationBuilder().token(bot_api_token).build()
 
@@ -26,10 +29,12 @@ if __name__ == '__main__':
     application.add_handler(CommandHandler('crypto', get_crypto_price))
     # this one filters TEXT and ensures COMMAND is not filtered by using ~
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), echo_handler))
+    
     # schedule an alert
     # run pip install "python-telegram-bot[job-queue]" because this is optional in the base lib
-    job_queue = application.job_queue
-    # run the alert
-    job_queue.run_repeating(crypto_alert, interval=10, first=5) # first=5 means wait 5 seconds before the first exec
+    # job_queue = application.job_queue
+    # # run the alert
+    # job_queue.run_repeating(crypto_alert, interval=10, first=5) # first=5 means wait 5 seconds before the first exec
+    
     print('Bot is polling...')
     application.run_polling() #for large-scale projects, use .run_webhook() instead

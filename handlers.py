@@ -1,13 +1,16 @@
-import httpx
+import httpx # if using requests instead, the bot would handle one request at a time only
 import asyncio # this is necessary for sleep, wait, and gather tools
 import os
 from telegram import Update
 from telegram.ext import ContextTypes
 
-
+# scripts
+import db
 
 # no need to import AsyncIO module since ApplicationBuilder is built on top of async  
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    db.add_user(user.id, user.username)
     await update.message.reply_text('System is online!\nAwaiting instructions...')
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
