@@ -24,6 +24,15 @@ def add_user(user_id, username):
         cursor.execute(
             '''
                 INSERT OR IGNORE INTO users (id, username) 
-                VALUES (? , ?)
+                VALUES (?, ?)
             ''', (user_id, username)
         )
+
+def get_all_users():
+    with sqlite3.connect('bot.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM users')
+        # check_db.py returns a tuple (id, username, timestamp)
+        # since we need the id, this should be index 0.
+        return [row[0] for row in cursor.fetchall()]
+    

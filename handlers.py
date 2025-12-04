@@ -19,6 +19,7 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     /start
     /help
     /crypto
+    /broadcast (Admin Only)
     '''
     await update.message.reply_text(help_text)
 
@@ -60,3 +61,36 @@ async def crypto_alert(context: ContextTypes.DEFAULT_TYPE) -> None:
     # no need to import dotenv and call load_dotenv() again here because it's already done in main.py
     chat_id = os.getenv('MY_CHAT_ID')
     await context.bot.send_message(chat_id=chat_id, text='🔔 Voran Alert: Checking systems...')
+
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # get update.effective_user.id and compare to MY_CHAT_ID from .env
+    # if they don't match, reply "⛔ Access Denied." and return
+    # check if they typed a message with len(context.args) > 0
+
+    admin_id = int(os.getenv('MY_CHAT_ID'))
+    sender_id = update.effective_user.id
+    
+    # security check
+    if sender_id != admin_id:
+        await update.message.reply_text('⛔ Access Denied.')
+        return
+    
+    # validation to check if the message is empty
+    if len(context.args) == 0:
+        await update.message.reply_text('Usage: /broadcast <message>')
+        return
+    
+    message = ' '.join(context.args)
+    all_users = db.get_all_users()
+
+    await update.message.reply_text(f'📢 Broadcasting to {len(all_users)} users...')
+
+    for user_id in all_users:
+        try:
+            # sends message to each user_id from the db
+            await context.bot.send_message(chat_id=user_id, text=message)
+        except Exception as e:
+            # if a user blocked the bot, this prevents the loop from breaking
+            print(f'Failed to send to {user_id}: {e}')
+
+    await update.message.reply_text('✅ Broadcast complete.')
