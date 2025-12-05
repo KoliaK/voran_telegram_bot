@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 #scripts
 from handlers import start, help, echo_handler, get_crypto_price, crypto_alert, broadcast
+import keep_alive
 
 
 # gets credentials from .env file
@@ -36,5 +37,9 @@ if __name__ == '__main__':
     # job_queue = application.job_queue
     # job_queue.run_repeating(crypto_alert, interval=10, first=5) # first=5 means wait 5 seconds before the first exec
     
+    # runs the fake website so the cloud service doesn't terminate the script
+    keep_alive.keep_alive()
+
+    # runs the bot
     print('Bot is polling...')
     application.run_polling() #for large-scale projects, use .run_webhook() instead

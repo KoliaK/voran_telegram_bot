@@ -60,7 +60,8 @@ async def get_crypto_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def crypto_alert(context: ContextTypes.DEFAULT_TYPE) -> None:
     # no need to import dotenv and call load_dotenv() again here because it's already done in main.py
     chat_id = os.getenv('MY_CHAT_ID')
-    await context.bot.send_message(chat_id=chat_id, text='🔔 Voran Alert: Checking systems...')
+    bot_name = os.getenv('BOT_NAME')
+    await context.bot.send_message(chat_id=chat_id, text=f'🔔 {bot_name} Alert: Checking systems...')
 
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # get update.effective_user.id and compare to MY_CHAT_ID from .env
@@ -94,3 +95,4 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             print(f'Failed to send to {user_id}: {e}')
 
     await update.message.reply_text('✅ Broadcast complete.')
+    
