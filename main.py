@@ -4,7 +4,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from dotenv import load_dotenv
 
 #scripts
-from handlers import start, help, echo_handler, get_crypto_price, crypto_alert, broadcast
+from handlers import start, help, tempmail, checkmail, read_mail, broadcast, unknown_command_handler
 import keep_alive
 
 
@@ -27,15 +27,16 @@ if __name__ == '__main__':
     # COMMAND HANDLERS
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('help', help))
-    application.add_handler(CommandHandler('crypto', get_crypto_price))
+    application.add_handler(CommandHandler('tempmail', tempmail))
+    application.add_handler(CommandHandler('checkmail', checkmail))
+    application.add_handler(CommandHandler('read', read_mail))
     application.add_handler(CommandHandler('broadcast', broadcast))
-    # this one filters TEXT and ensures COMMAND is not filtered by using ~
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), echo_handler))
+    application.add_handler(MessageHandler(filters.COMMAND, unknown_command_handler))
     
     # <-- schedule and run an alert -->
     # <-- run pip install "python-telegram-bot[job-queue]" because this is not in the base lib -->
     # job_queue = application.job_queue
-    # job_queue.run_repeating(crypto_alert, interval=10, first=5) # first=5 means wait 5 seconds before the first exec
+    # job_queue.run_repeating(some_function_from_handlers.py, interval=10, first=5) # first=5 means wait 5 seconds before the first exec
     
     # runs the fake website so the cloud service doesn't terminate the script
     keep_alive.keep_alive()
