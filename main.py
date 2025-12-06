@@ -4,7 +4,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from dotenv import load_dotenv
 
 #scripts
-from handlers import start, help, tempmail, checkmail, read_mail, broadcast, unknown_command_handler
+from handlers import start, help, tempmail, checkmail, read_mail, dispose, broadcast, unknown_command_handler
 import keep_alive
 
 
@@ -30,6 +30,7 @@ if __name__ == '__main__':
     application.add_handler(CommandHandler('tempmail', tempmail))
     application.add_handler(CommandHandler('checkmail', checkmail))
     application.add_handler(CommandHandler('read', read_mail))
+    application.add_handler(CommandHandler('dispose', dispose))
     application.add_handler(CommandHandler('broadcast', broadcast))
     application.add_handler(MessageHandler(filters.COMMAND, unknown_command_handler))
     
@@ -43,4 +44,4 @@ if __name__ == '__main__':
 
     # runs the bot
     print('Bot is polling...')
-    application.run_polling() #for large-scale projects, use .run_webhook() instead
+    application.run_polling() #for large-scale projects, use .run_webhook() instead of run_polling()

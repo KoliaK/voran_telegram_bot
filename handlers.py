@@ -1,30 +1,42 @@
+import html
 import httpx # if using requests instead, the bot would handle one request at a time only
 import asyncio # this is necessary for sleep, wait, and gather tools
 import os
+import re
 from telegram import Update
 from telegram.ext import ContextTypes
 
 # scripts
 import db
 
+# disguise the request to the API
+# this tells the server: "I am Chrome on Windows, trust me."
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
+
+## == STARTS THE BOT == ##
 # no need to import AsyncIO module since ApplicationBuilder is built on top of async  
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     db.add_user(user.id, user.username)
     await update.message.reply_text('System is online!\nAwaiting instructions...\nType /help for a list of commands.')
 
+## == LISTS COMMANDS == ##
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     help_text = '''
     Available commands:
-    /start
-    /help
-    /tempmail
-    /checkmail
-    /read <id>
+    /start => starts the bot
+    /help => lists commands
+    /tempmail => creates temporary email
+    /checkmail => checks temporary email inbox
+    /read <id> => reads the temporary email
+    /dispose => deletes the temporaty email
     /broadcast <msg> (Admin Only)
     '''
     await update.message.reply_text(help_text)
 
+## == CREATES TEMP EMAIL == ##
 async def tempmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # GUERRILLA MAIL API ENDPOINT
     url = "https://api.guerrillamail.com/ajax.php?f=get_email_address"
@@ -33,7 +45,7 @@ async def tempmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # httpx does not follow redirects by default
         # follow_redirects=True is necessary so it
         # doesn't stop after a 301 Redirect
-        async with httpx.AsyncClient(follow_redirects=True) as client:
+        async with httpx.AsyncClient(follow_redirects=True, headers=HEADERS) as client:
             response = await client.get(url)
             data = response.json()
             # check the raw data if needed:
@@ -60,6 +72,8 @@ async def tempmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             print(f"🔴 Server Response: {response.text}")
         await update.effective_message.reply_text('⚠️ API Error. Try again.')
 
+
+## == CHECKS INBOX == ##
 async def checkmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # retrieve session id
     sid_token = context.user_data.get('sid_token')
@@ -73,7 +87,7 @@ async def checkmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = f"https://api.guerrillamail.com/ajax.php?f=get_email_list&offset=0&sid_token={sid_token}"
 
     try:
-        async with httpx.AsyncClient(follow_redirects=True) as client:
+        async with httpx.AsyncClient(follow_redirects=True, headers=HEADERS) as client:
             response = await client.get(url)
             data = response.json()
             # check the raw data if needed:
@@ -105,6 +119,8 @@ async def checkmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         print(f'🔴 Error in /checkmail: {e}')
         await update.effective_message.reply_text('⚠️ Error fetching messages.')
 
+
+## == READS MESSAGE BODY == ##
 async def read_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # check if the user typed an id
@@ -123,7 +139,7 @@ async def read_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     url = f"https://api.guerrillamail.com/ajax.php?f=fetch_email&email_id={mail_id}&sid_token={sid_token}"
 
     try:
-        async with httpx.AsyncClient(follow_redirects=True) as client:
+        async with httpx.AsyncClient(follow_redirects=True, headers=HEADERS) as client:
             response = await client.get(url)
             data = response.json()
 
@@ -133,16 +149,68 @@ async def read_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # extract the mail body
             email_body = data.get('mail_body', 'No content.')
             email_subject = data.get('mail_subject', 'No subject')
+            
+            # THIS IS IMPORTANT TO FILTER DOWN HTML TAGS 
+            # OTHERWISE THAT WOULD RETURN A READING ERROR
+
+            # simple replace for some tags
+            temp_body = email_body.replace('<br>', '\n').replace('<br/>', '\n').replace('</p>', '\n')
+
+            # regex to strip ALL remaining HTML tags (<div..., <span..., etc.)
+            clean_body = re.sub('<[^<]+?>', '', temp_body)
+
+            # escape special characters (e.g. if email contains "x < y", Telegram breaks without this)
+            safe_body = html.escape(clean_body)
+            safe_subject = html.escape(email_subject)
+
+            # wrap the email body in <pre> ... </pre> to get a pre-formatted text with a dark background look for the email body
+            # :4000 makes sure the response does not surpass the Telegram's 4096 character limit per message
+            final_message = f'<b>📝 {safe_subject}</b>\n\n<pre>{safe_body[:4000]}</pre>'
 
             await update.effective_message.reply_text(
-                f'📝 {email_subject}\n\n{email_body[:4000]}',
-                parse_mode='HTML' # disable Markdown/HTML parsing because email HTML might break Telegram
+                
+                # safe to use raw HTML parsing here because the bad HTML tags were cleaned with regex, otherwise it'd return an error in some cases since Telegram cannot correctly process some tags such as <br>, <span>, etc. Without regex, just use parse_mode=None
+                final_message,
+                parse_mode='HTML'
             )
     except Exception as e:
         print(f'🔴 Error in /read: {e}')
         await update.effective_message.reply_text('⚠️ Error reading message.\nMake sure to include the message ID like this:\n/read <ID>!')
 
+## == DELETES TEMP EMAIL == ##
+async def dispose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # get current data
+    sid_token = context.user_data.get('sid_token')
+    email_address = context.user_data.get('temp_email')
 
+    if not sid_token:
+        await update.effective_message.reply_text("❌ You don't have an active session to dispose.")
+        return
+
+    # call GuerrillaMail to destroy it on server
+    url = f"https://api.guerrillamail.com/ajax.php?f=forget_me&email_addr={email_address}&sid_token={sid_token}"
+
+    try:
+        # use HEADERS just in case
+        async with httpx.AsyncClient(follow_redirects=True, headers=HEADERS) as client:
+            await client.get(url) # we don't really care about the response, just that we sent it.
+            
+            # CLEAR LOCAL MEMORY
+            # This wipes the data for this user
+            context.user_data.clear()
+            
+            await update.effective_message.reply_text(
+                f"🗑️ **Identity Destroyed**\n"
+                f"The address `{email_address}` has been disposed.\n"
+                f"Type /tempmail to generate a fresh identity.",
+                parse_mode='Markdown'
+            )
+
+    except Exception as e:
+        print(f"🔴 Error in /dispose: {e}")
+        await update.effective_message.reply_text("⚠️ Error disposing email.")
+
+## == SENDS MESSAGE TO ALL USERS (Admin Only) == ##
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # get update.effective_user.id and compare to MY_CHAT_ID from .env
     # if they don't match, reply "⛔ Access Denied." and return
@@ -176,7 +244,8 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     await update.message.reply_text('✅ Broadcast complete.')
 
-# Handles everything that is not a valid command
+
+## == HANDLES INVALID COMMANDS == ##
 async def unknown_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # effective_message helper makes sure the code grabs the text object itself no matter if it's
     # a new message, and edit, or a channel post
