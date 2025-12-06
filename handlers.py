@@ -20,7 +20,7 @@ HEADERS = {
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     db.add_user(user.id, user.username)
-    await update.message.reply_text('System is online!\nAwaiting instructions...\nType /help for a list of commands.')
+    await update.effective_message.reply_text('System is online!\nAwaiting instructions...\nType /help for a list of commands.')
 
 ## == LISTS COMMANDS == ##
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -34,7 +34,7 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     /dispose => deletes the temporaty email
     /broadcast <msg> (Admin Only)
     '''
-    await update.message.reply_text(help_text)
+    await update.effective_message.reply_text(help_text)
 
 ## == CREATES TEMP EMAIL == ##
 async def tempmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -221,18 +221,18 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     # security check
     if sender_id != admin_id:
-        await update.message.reply_text('⛔ Access Denied.')
+        await update.effective_message.reply_text('⛔ Access Denied.')
         return
     
     # validation to check if the message is empty
     if len(context.args) == 0:
-        await update.message.reply_text('Usage: /broadcast <message>')
+        await update.effective_message.reply_text('Usage: /broadcast <message>')
         return
     
     message = ' '.join(context.args)
     all_users = db.get_all_users()
 
-    await update.message.reply_text(f'📢 Broadcasting to {len(all_users)} users...')
+    await update.effective_message.reply_text(f'📢 Broadcasting to {len(all_users)} users...')
 
     for user_id in all_users:
         try:
@@ -242,7 +242,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # if a user blocked the bot, this prevents the loop from breaking
             print(f'Failed to send to {user_id}: {e}')
 
-    await update.message.reply_text('✅ Broadcast complete.')
+    await update.effective_message.reply_text('✅ Broadcast complete.')
 
 
 ## == HANDLES INVALID COMMANDS == ##
