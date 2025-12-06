@@ -69,9 +69,9 @@ cd voran_telegram_bot
 
 4.  **Configure Environment Create a .env file in the root directory:**
 ```env
-    TELEGRAM_TOKEN=your_telegram_bot_token
-    MY_CHAT_ID=your_personal_telegram_id
-    BOT_NAME=Voran
+    BOT_NAME = 'Voran'
+    TELEGRAM_TOKEN = '5555555:something_like_this'
+    MY_CHAT_ID = 55555555 # this is an integer, so no quotes!
 ```
 
 5.  **Run the Bot:**
