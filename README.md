@@ -11,7 +11,7 @@ It primarily acts as a **Privacy Shield**, allowing users to generate temporary,
 
 ## 🚀 Live Demo
 You can interact with the bot here: **@voran_crow_bot**
-*(Note: As this is a portfolio project on a free tier, it may take up to 50s to wake up, or if not available, can still be run locally)*
+*(Note: As this is a portfolio project on a free tier, it may take up to 50s to wake up. If not available, it can still be run locally)*
 
 ## 🛠️ Tech Stack & Architecture
 
