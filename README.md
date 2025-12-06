@@ -41,3 +41,40 @@ You can interact with the bot here: **@voran_crow_bot**
 ├── keep_alive.py     # Flask server for uptime management
 ├── check_db.py       # Utility script to inspect database state
 └── Procfile          # Deployment instructions for Render
+```
+
+## ⚙️ Local Installation
+If you want to run this bot locally:
+
+1.  **Clone the repository:**
+
+```bash
+git clone [https://github.com/YOUR_USERNAME/voran_telegram_bot.git](https://github.com/YOUR_USERNAME/voran_telegram_bot.git)
+cd voran_telegram_bot
+```
+
+2.  **Create a Virtual Environment:**
+```bash
+    python -m venv .venv
+    # Windows
+    .venv\Scripts\activate
+    # Mac/Linux
+    source .venv/bin/activate
+```
+
+3.  **Install Dependencies:**
+```bash
+    pip install -r requirements.txt
+```
+
+4.  **Configure Environment Create a .env file in the root directory:**
+```env
+    TELEGRAM_TOKEN=your_telegram_bot_token
+    MY_CHAT_ID=your_personal_telegram_id
+    BOT_NAME=Voran
+```
+
+5.  **Run the Bot:**
+```bash
+    python main.py
+```
