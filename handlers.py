@@ -1,5 +1,5 @@
 # TODO
-# Add an alert letting user know that their email is about to expire 
+# Add an alert letting user know that their email is about to expire
 
 import html
 import httpx # if using requests instead, the bot would handle one request at a time only
@@ -131,7 +131,7 @@ async def check_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 return
             
             # loop through messages
-            reply_text = f"📬 Inbox for {email_address}\n(To read a message content, type /read [message_id])\nFor example: /read 120931290"
+            reply_text = f"📬 <b>Inbox for</b> {email_address}\n"
             # limit to 5 emails to avoid spamming chat
             for msg in messages[:5]: 
                 msg_id = msg['mail_id']
@@ -143,6 +143,11 @@ async def check_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 👤 From: <code>{sender}</code>
 📝 Subject: <b>{subject}</b>'''
                 
+            reply_text += '''
+------------------------------------
+<i>(To read a message content, type /read [message_id])
+e.g. /read 120931290</i>'''
+
             await update.effective_message.reply_text(reply_text, parse_mode='HTML') # <code> allows copy-paste by clicking
     
     except Exception as e:
@@ -262,7 +267,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = ' '.join(context.args)
     all_users = db.get_all_users()
 
-    await update.effective_message.reply_text(f'📢 Broadcasting to {len(all_users)} users...')
+    await update.effective_message.reply_text(f'📢 <b>Broadcasting to {len(all_users)} users...</b>', parse_mode='HTML')
 
     for user_id in all_users:
         try:
@@ -272,7 +277,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # if a user blocked the bot, this prevents the loop from breaking
             print(f'Failed to send to {user_id}: {e}')
 
-    await update.effective_message.reply_text('✅ Broadcast complete.')
+    await update.effective_message.reply_text('✅ <i>Broadcast complete.</i>', parse_mode='HTML')
 
 
 ## == HANDLES INVALID COMMANDS == ##
