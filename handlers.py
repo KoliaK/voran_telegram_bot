@@ -35,7 +35,7 @@ async def zero_minutes_left(context: ContextTypes.DEFAULT_TYPE) -> None:
     job = context.job
     await context.bot.send_message(
         chat_id = job.chat_id,
-        text="🗑️ <b>Session Expired:</b>** This temporary email address has been automatically disposed. Create another one with /tempmail.",
+        text="🗑️ <b>Session Expired:</b> This temporary email address has been automatically disposed. Create another one with /tempmail.",
         parse_mode='HTML'
     )
 
