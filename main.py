@@ -34,7 +34,7 @@ if __name__ == '__main__':
     application.add_handler(CommandHandler('broadcast', broadcast))
     application.add_handler(MessageHandler(filters.COMMAND, unknown_command_handler))
     
-    # <-- schedule and run an alert -->
+    # <-- schedule and run a repeating alert -->
     # <-- run pip install "python-telegram-bot[job-queue]" because this is not in the base lib -->
     # job_queue = application.job_queue
     # job_queue.run_repeating(some_function_from_handlers.py, interval=10, first=5) # first=5 means wait 5 seconds before the first exec

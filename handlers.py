@@ -1,9 +1,5 @@
-# TODO
-# Add an alert letting user know that their email is about to expire
-
 import html
 import httpx # if using requests instead, the bot would handle one request at a time only
-import asyncio # this is necessary for sleep, wait, and gather tools
 import os
 import re
 from telegram import Update
@@ -18,20 +14,46 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
+# == NOTIFIES THE USER WHEN THEIR EMAIL IS EXPIRED/ABOUT TO EXPIRE == ##
+async def sixty_minutes_left(context: ContextTypes.DEFAULT_TYPE) -> None:
+    job = context.job
+    await context.bot.send_message(
+        chat_id=job.chat_id,
+        text="⏳ <b>Time Check:</b> Your temporary email will expire in <i><b>60 minutes.</b></i>",
+        parse_mode='HTML'
+    )
+
+async def five_minutes_left(context: ContextTypes.DEFAULT_TYPE) -> None:
+    job = context.job
+    await context.bot.send_message(
+        chat_id=job.chat_id,
+        text="⏳ <b>Time Check:</b> Your temporary email will expire in <i><b>5 minutes.</b></i>",
+        parse_mode='HTML'
+    )
+
+async def zero_minutes_left(context: ContextTypes.DEFAULT_TYPE) -> None:
+    job = context.job
+    await context.bot.send_message(
+        chat_id = job.chat_id,
+        text="🗑️ <b>Session Expired:</b>** This temporary email address has been automatically disposed. Create another one with /tempmail.",
+        parse_mode='HTML'
+    )
+
+
 ## == STARTS THE BOT == ##
 # no need to import AsyncIO module since ApplicationBuilder is built on top of async  
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     db.add_user(user.id, user.username)
-    await update.effective_message.reply_text('⚙️ <b>System is online!\n<i>Awaiting instructions...</i>\nType /help for a list of commands.</b>', parse_mode='HTML')
+    await update.effective_message.reply_text('🌐 <b>System is online!\n<i>Awaiting instructions...</i>\nType /help for a list of commands.</b>', parse_mode='HTML')
 
 ## == LISTS COMMANDS == ##
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     help_text = '''
-    🐦‍⬛ <b>Available Commands:</b>
+    🟢 <b>Available Commands:</b>
 
     /start
-        └── ⚙️ <i>starts the bot</i>
+        └── 🚀 <i>starts the bot</i>
 
     /help
         └── ⌨️ <i>lists available commands</i>
@@ -49,7 +71,7 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         └── 🗑️ <i>deletes the temporary email</i>
 
     /broadcast [message]
-        └── 📢 <i>Admin Only</i>
+        └── 📢 <i>Admin Only</i> 🔐
     '''
     await update.effective_message.reply_text(help_text, parse_mode='HTML')
 
@@ -75,7 +97,33 @@ async def temp_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             context.user_data['temp_email'] = email_address
             context.user_data['sid_token'] = sid_token
 
-            # Session Log
+            # scheduling the alarms
+            user_id = update.effective_user.id
+            chat_id = update.effective_chat.id
+
+            # first alarm
+            context.job_queue.run_once(
+                sixty_minutes_left, 
+                1, 
+                chat_id=chat_id,
+                name=f"{user_id}_first_warning" # Unique Name
+            )
+
+            # second alarm
+            context.job_queue.run_once(
+                five_minutes_left, 
+                3300, 
+                chat_id=chat_id,
+                name=f"{user_id}_second_warning" # Unique Name
+            )
+            # third alarm
+            context.job_queue.run_once(
+                zero_minutes_left, 
+                3600, 
+                chat_id=chat_id,
+                name=f"{user_id}_expired" # Unique Name
+            )
+            # session Log
             print(
                 f'''
                 ==DEBUG==
@@ -87,7 +135,7 @@ async def temp_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
             await update.effective_message.reply_text(
                 f'🛡️ <b>Privacy Shield Active (GuerrillaMail)</b>\n\n'
-                f'📧 Address: <code>{email_address}</code>\n'
+                f'📧 Address: <code>{email_address}</code>🔗‍️\n'
                 '                               └── Click here to copy the email address!\n'
                 f'<i>To see your inbox, type /checkinbox.</i>',
                 parse_mode='HTML' # <code> allows copy-paste by clicking
@@ -139,8 +187,8 @@ async def check_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 subject = msg['mail_subject']
                 reply_text += f'''
 ------------------------------------
-🆔 Message ID: <code>{msg_id}</code>
-👤 From: <code>{sender}</code>
+🆔 Message ID: <code>{msg_id}</code>🔗‍️
+👤 From: <code>{sender}</code>🔗‍️
 📝 Subject: <b>{subject}</b>'''
                 
             reply_text += '''
@@ -228,8 +276,19 @@ async def dispose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         # use HEADERS just in case
         async with httpx.AsyncClient(follow_redirects=True, headers=HEADERS) as client:
-            await client.get(url) # we don't really care about the response, just that we sent it.
+            await client.get(url) # we don't really care about the response, just that we sent it for closing the session.
             
+            # --- KILL THE TIMERS TO AVOID PHANTOM NOTIFICATIONS ---
+            user_id = str(update.effective_user.id)
+            
+            # Find jobs by the names we gave them
+            jobs_to_cancel = context.job_queue.get_jobs_by_name(f'{user_id}_first_warning') + \
+                    context.job_queue.get_jobs_by_name(f'{user_id}_second_warning') + \
+                    context.job_queue.get_jobs_by_name(f'{user_id}_expired')
+            
+            for job in jobs_to_cancel:
+                job.schedule_removal() # Stop the countdown
+
             # CLEAR LOCAL MEMORY
             # This wipes the data for this user
             context.user_data.clear()
