@@ -1,3 +1,6 @@
+# TODO
+# Add an alert letting user know that their email is about to expire 
+
 import html
 import httpx # if using requests instead, the bot would handle one request at a time only
 import asyncio # this is necessary for sleep, wait, and gather tools
@@ -20,24 +23,38 @@ HEADERS = {
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     db.add_user(user.id, user.username)
-    await update.effective_message.reply_text('System is online!\nAwaiting instructions...\nType /help for a list of commands.')
+    await update.effective_message.reply_text('⚙️ <b>System is online!\n<i>Awaiting instructions...</i>\nType /help for a list of commands.</b>', parse_mode='HTML')
 
 ## == LISTS COMMANDS == ##
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     help_text = '''
-    Available commands:
-    /start => starts the bot
-    /help => lists commands
-    /tempmail => creates temporary email
-    /checkmail => checks temporary email inbox
-    /read <id> => reads the temporary email
-    /dispose => deletes the temporaty email
-    /broadcast <msg> (Admin Only)
+    🐦‍⬛ <b>Available Commands:</b>
+
+    /start
+        └── ⚙️ <i>starts the bot</i>
+
+    /help
+        └── ⌨️ <i>lists available commands</i>
+
+    /tempmail
+        └── 🛡️ <i>creates temporary email</i>
+
+    /checkinbox
+        └── 📬 <i>checks temporary email inbox</i>
+
+    /read [message_id]
+        └── 📜 <i>reads the chosen message by id</i>
+
+    /dispose
+        └── 🗑️ <i>deletes the temporary email</i>
+
+    /broadcast [message]
+        └── 📢 <i>Admin Only</i>
     '''
-    await update.effective_message.reply_text(help_text)
+    await update.effective_message.reply_text(help_text, parse_mode='HTML')
 
 ## == CREATES TEMP EMAIL == ##
-async def tempmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def temp_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # GUERRILLA MAIL API ENDPOINT
     url = "https://api.guerrillamail.com/ajax.php?f=get_email_address"
 
@@ -58,12 +75,22 @@ async def tempmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             context.user_data['temp_email'] = email_address
             context.user_data['sid_token'] = sid_token
 
+            # Session Log
+            print(
+                f'''
+                ==DEBUG==
+                🛡️ New Session created at:
+                📧 Address: {email_address}
+                🔑 Session ID: {sid_token}
+                '''
+            )
+
             await update.effective_message.reply_text(
-                f'🛡️ **Privacy Shield Active (GuerrillaMail)**\n\n'
-                f'📧 Address: `{email_address}`\n'
-                f'🔑 Session ID: `{sid_token[:10]}...`\n\n'
-                f'Use this email. Type /checkmail to see your inbox.',
-                parse_mode='Markdown'
+                f'🛡️ <b>Privacy Shield Active (GuerrillaMail)</b>\n\n'
+                f'📧 Address: <code>{email_address}</code>\n'
+                '                               └── Click here to copy the email address!\n'
+                f'<i>To see your inbox, type /checkinbox.</i>',
+                parse_mode='HTML' # <code> allows copy-paste by clicking
             )
     except Exception as e:
         print(f'🔴 Error in /tempmail: {e}')
@@ -74,7 +101,7 @@ async def tempmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 ## == CHECKS INBOX == ##
-async def checkmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def check_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # retrieve session id
     sid_token = context.user_data.get('sid_token')
     email_address = context.user_data.get('temp_email')
@@ -90,7 +117,7 @@ async def checkmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         async with httpx.AsyncClient(follow_redirects=True, headers=HEADERS) as client:
             response = await client.get(url)
             data = response.json()
-            # check the raw data if needed:
+            # check the raw data if needed to find the API endpoints:
             # print("🔍 RAW DATA:", data)
 
             # guerrillamail returns a 'list' key
@@ -104,19 +131,22 @@ async def checkmail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 return
             
             # loop through messages
-            reply_text = f"📬 **Inbox for {email_address}**\n"
+            reply_text = f"📬 Inbox for {email_address}\n(To read a message content, type /read [message_id])\nFor example: /read 120931290"
             # limit to 5 emails to avoid spamming chat
             for msg in messages[:5]: 
                 msg_id = msg['mail_id']
                 sender = msg['mail_from']
                 subject = msg['mail_subject']
-                reply_text += f'\n-------------------\n🆔 ID: {msg_id}\n👤 From: {sender}\n📝 Subject: {subject}'
-
-            reply_text += "\n\nTo read a message content, type /read <id> command!"
-            await update.effective_message.reply_text(reply_text, parse_mode='Markdown')
+                reply_text += f'''
+------------------------------------
+🆔 Message ID: <code>{msg_id}</code>
+👤 From: <code>{sender}</code>
+📝 Subject: <b>{subject}</b>'''
+                
+            await update.effective_message.reply_text(reply_text, parse_mode='HTML') # <code> allows copy-paste by clicking
     
     except Exception as e:
-        print(f'🔴 Error in /checkmail: {e}')
+        print(f'🔴 Error in /checkinbox: {e}')
         await update.effective_message.reply_text('⚠️ Error fetching messages.')
 
 
@@ -125,14 +155,14 @@ async def read_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # check if the user typed an id
     if len(context.args) == 0:
-        await update.effective_message.reply_text('Usage: /read <email_id>')
+        await update.effective_message.reply_text('Usage: /read [message_id]')
 
     mail_id = context.args[0]
 
     # check if the session is active
     sid_token = context.user_data.get('sid_token')
     if not sid_token:
-        await update.effective_message.reply_text("❌ No active session.")
+        await update.effective_message.reply_text("❌ No active session. Type /tempmail first.")
         return
     
     # fetch inbox based on the session id token
@@ -165,17 +195,17 @@ async def read_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
             # wrap the email body in <pre> ... </pre> to get a pre-formatted text with a dark background look for the email body
             # :4000 makes sure the response does not surpass the Telegram's 4096 character limit per message
-            final_message = f'<b>📝 {safe_subject}</b>\n\n<pre>{safe_body[:4000]}</pre>'
+            final_message = f'<b>📜 {safe_subject}</b>\n\n<pre>{safe_body[:4000]}</pre>'
 
             await update.effective_message.reply_text(
                 
-                # safe to use raw HTML parsing here because the bad HTML tags were cleaned with regex, otherwise it'd return an error in some cases since Telegram cannot correctly process some tags such as <br>, <span>, etc. Without regex, just use parse_mode=None
+                # safe to use raw HTML parsing here because the bad HTML tags were cleaned with regex, otherwise it'd return an error in some cases since Telegram cannot correctly process some tags such as <br>, <h1>, <span>, etc. Without regex, just use parse_mode=None
                 final_message,
                 parse_mode='HTML'
             )
     except Exception as e:
         print(f'🔴 Error in /read: {e}')
-        await update.effective_message.reply_text('⚠️ Error reading message.\nMake sure to include the message ID like this:\n/read <ID>!')
+        await update.effective_message.reply_text('⚠️ Error reading message.\nCheck the Message ID.')
 
 ## == DELETES TEMP EMAIL == ##
 async def dispose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -200,10 +230,10 @@ async def dispose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             context.user_data.clear()
             
             await update.effective_message.reply_text(
-                f"🗑️ **Identity Destroyed**\n"
-                f"The address `{email_address}` has been disposed.\n"
-                f"Type /tempmail to generate a fresh identity.",
-                parse_mode='Markdown'
+                f"🗑️ <b>Identity Destroyed!</b>\n"
+                f"The address <code>{email_address}</code> has been disposed.\n"
+                f"<i>Type /tempmail to generate a fresh identity.</i>",
+                parse_mode='HTML'
             )
 
     except Exception as e:
@@ -226,7 +256,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     # validation to check if the message is empty
     if len(context.args) == 0:
-        await update.effective_message.reply_text('Usage: /broadcast <message>')
+        await update.effective_message.reply_text('Usage: /broadcast [message]')
         return
     
     message = ' '.join(context.args)
@@ -251,5 +281,5 @@ async def unknown_command_handler(update: Update, context: ContextTypes.DEFAULT_
     # a new message, and edit, or a channel post
     bad_command = update.effective_message.text
     await update.effective_message.reply_text(f'❌"{bad_command}" is not a valid command.\nType /help for a list of available commands')
-    # prints the chat ID in the terminal for dev purposes
+    # prints the chat ID in the terminal for dev purposes (use /foo or anything that is not a valid command)
     print(f"🔵 Unknown command attempted by Chat ID: {update.effective_chat.id}")
