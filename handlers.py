@@ -135,7 +135,7 @@ async def temp_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
             await update.effective_message.reply_text(
                 f'🛡️ <b>Privacy Shield Active (GuerrillaMail)</b>\n\n'
-                f'📧 Address: <code>{email_address}</code>🔗‍️\n'
+                f'📧 Address: <code>{email_address}</code>\n'
                 '                               └── Click here to copy the email address!\n'
                 f'<i>To see your inbox, type /checkinbox.</i>',
                 parse_mode='HTML' # <code> allows copy-paste by clicking
@@ -187,8 +187,8 @@ async def check_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 subject = msg['mail_subject']
                 reply_text += f'''
 ------------------------------------
-🆔 Message ID: <code>{msg_id}</code>🔗‍️
-👤 From: <code>{sender}</code>🔗‍️
+🆔 Message ID: <code>{msg_id}</code>
+👤 From: <code>{sender}</code>
 📝 Subject: <b>{subject}</b>'''
                 
             reply_text += '''
