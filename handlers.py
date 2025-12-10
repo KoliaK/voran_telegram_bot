@@ -193,7 +193,7 @@ async def check_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 
             reply_text += '''
 ------------------------------------
-<i>(To read a message content, type /read [message_id])
+<i>To read a message content, type /read [message_id]
 e.g. /read 120931290</i>'''
 
             await update.effective_message.reply_text(reply_text, parse_mode='HTML') # <code> allows copy-paste by clicking
@@ -227,11 +227,12 @@ async def read_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             data = response.json()
 
             # check the raw data if needed:
-            # print("🔍 RAW DATA:", data)
+            print("🔍 RAW DATA:", data)
 
             # extract the mail body
             email_body = data.get('mail_body', 'No content.')
             email_subject = data.get('mail_subject', 'No subject')
+            mail_from = data.get('mail_from', 'No address')
             
             # THIS IS IMPORTANT TO FILTER DOWN HTML TAGS 
             # OTHERWISE THAT WOULD RETURN A READING ERROR
@@ -248,7 +249,7 @@ async def read_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
             # wrap the email body in <pre> ... </pre> to get a pre-formatted text with a dark background look for the email body
             # :4000 makes sure the response does not surpass the Telegram's 4096 character limit per message
-            final_message = f'<b>📜 {safe_subject}</b>\n\n<pre>{safe_body[:4000]}</pre>'
+            final_message = f'📤 Opening message from: <code>{mail_from}</code>\n\n📝 Subject: <b>{safe_subject}</b>\n\n<pre>{safe_body[:4000]}</pre>'
 
             await update.effective_message.reply_text(
                 
