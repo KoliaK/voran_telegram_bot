@@ -20,8 +20,8 @@ logging.basicConfig(
 )
 
 # set the bot commands menu in Telegram
-# displays command suggestions as the user types
-async def post_init(application: Application) -> None:
+# display command suggestions as the user types
+async def setup_command_menu(application: Application) -> None:
     print('📝 Setting up bot commands...')
 
     # note: don't list admin-only commands (broadcast) 
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     from db import init_db
     init_db()
     # build the app
-    application = ApplicationBuilder().token(bot_api_token).post_init(post_init).build()
+    application = ApplicationBuilder().token(bot_api_token).post_init(setup_command_menu).build()
 
     # COMMAND HANDLERS
     application.add_handler(CommandHandler('start', start))
