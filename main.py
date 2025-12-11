@@ -32,16 +32,12 @@ if __name__ == '__main__':
     application.add_handler(CommandHandler('read', read_mail))
     application.add_handler(CommandHandler('dispose', dispose))
     application.add_handler(CommandHandler('broadcast', broadcast))
-    application.add_handler(MessageHandler(filters.COMMAND, unknown_command_handler))
-    
-    # <-- schedule and run a repeating alert -->
-    # <-- run pip install "python-telegram-bot[job-queue]" because this is not in the base lib -->
-    # job_queue = application.job_queue
-    # job_queue.run_repeating(some_function_from_handlers.py, interval=10, first=5) # first=5 means wait 5 seconds before the first exec
+    # this one filters invalid /COMMANDS.
+    application.add_handler(MessageHandler(filters.TEXT, unknown_command_handler))
     
     # runs the fake website so the cloud service doesn't terminate the script
     keep_alive.keep_alive()
 
     # runs the bot
     print('Bot is polling...')
-    application.run_polling() #for large-scale projects, use .run_webhook() instead of run_polling()
+    application.run_polling() #for large-scale projects, use .run_webhook() instead of .run_polling()
