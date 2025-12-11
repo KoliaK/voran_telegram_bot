@@ -1,3 +1,9 @@
+# REMEMBER TO ADD ANY NEW COMMAND TO THE LIST INSIDE:
+# post_init() in main.py
+
+#TODO
+# multilingual
+
 import sqlite3
 import html
 import httpx # if using requests instead, the bot would handle one request at a time only
@@ -40,12 +46,13 @@ async def zero_minutes_left(context: ContextTypes.DEFAULT_TYPE) -> None:
         parse_mode='HTML'
     )
 
-
 ## <-- STARTS THE BOT --> ##
-# no need to import AsyncIO module since ApplicationBuilder is built on top of async  
+# no need to import AsyncIO module since ApplicationBuilder is built on top of async
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
+    # adds user to db
     db.add_user(user.id, user.username)
+
     await update.effective_message.reply_text('🌐 <b>System is online!\n<i>Awaiting instructions...</i>\nType /help for a list of commands.</b>', parse_mode='HTML')
 
 ## <-- LISTS COMMANDS --> ##

@@ -1,6 +1,7 @@
 import os
 import logging
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+from telegram import BotCommand
+from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters
 from dotenv import load_dotenv
 
 #scripts
@@ -8,7 +9,7 @@ from handlers import start, help, temp_mail, check_inbox, read_mail, dispose, br
 import keep_alive
 
 
-# gets credentials from .env file
+# get credentials from .env file
 load_dotenv()
 bot_api_token = os.getenv('TELEGRAM_TOKEN')
 # bot_name = os.getenv('BOT_NAME')
@@ -18,11 +19,30 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 
+# set the bot commands menu in Telegram
+# displays command suggestions as the user types
+async def post_init(application: Application) -> None:
+    print('📝 Setting up bot commands...')
+
+    # note: don't list admin-only commands (broadcast) 
+    # or variable commands (read) in the public menu to keep it clean.
+    COMMANDS = [
+        BotCommand("start", "Starts the bot"),
+        BotCommand("help", "Lists available commands"),
+        BotCommand("tempmail", "Creates temporary email"),
+        BotCommand("checkmail", "Checks inbox"),
+        BotCommand("dispose", "Deletes current identity"),
+    ]
+
+    # await application.bot.set_my_commands(COMMANDS)
+    await application.bot.set_my_commands(COMMANDS)
+    print('✅ Commands set successfully.')
+
 if __name__ == '__main__':
     from db import init_db
     init_db()
     # build the app
-    application = ApplicationBuilder().token(bot_api_token).build()
+    application = ApplicationBuilder().token(bot_api_token).post_init(post_init).build()
 
     # COMMAND HANDLERS
     application.add_handler(CommandHandler('start', start))
