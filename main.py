@@ -30,7 +30,7 @@ async def post_init(application: Application) -> None:
         BotCommand("start", "Starts the bot"),
         BotCommand("help", "Lists available commands"),
         BotCommand("tempmail", "Creates temporary email"),
-        BotCommand("checkmail", "Checks inbox"),
+        BotCommand("check", "Checks inbox"),
         BotCommand("dispose", "Deletes current identity"),
     ]
 
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('help', help))
     application.add_handler(CommandHandler('tempmail', temp_mail))
-    application.add_handler(CommandHandler('checkinbox', check_inbox))
+    application.add_handler(CommandHandler('check', check_inbox))
     application.add_handler(CommandHandler('read', read_mail))
     application.add_handler(CommandHandler('dispose', dispose))
     application.add_handler(CommandHandler('finduser', find_user))

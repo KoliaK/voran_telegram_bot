@@ -69,14 +69,14 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     /tempmail
         └── 🛡️ <i>creates temporary email</i>
 
-    /checkinbox
-        └── 📬 <i>checks temporary email inbox</i>
+    /check
+        └── 📬 <i>checks inbox</i>
 
     /read [message_id]
         └── 📜 <i>reads the chosen message by id</i>
 
     /dispose
-        └── 🗑️ <i>deletes the temporary email</i>
+        └── 🗑️ <i>deletes current identity</i>
 
     /broadcast [message]
         └── 📢 <i>Admin Only</i> 🔐
@@ -148,7 +148,7 @@ async def temp_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 f'🛡️ <b>Privacy Shield Active (GuerrillaMail)</b>\n\n'
                 f'📧 Address: <code>{email_address}</code>\n'
                 '                               └── Click here to copy the email address!\n'
-                f'<i>To see your inbox, type /checkinbox.</i>',
+                f'<i>To see your inbox, type /check.</i>',
                 parse_mode='HTML' # <code> allows copy-paste by clicking
             )
     except Exception as e:
@@ -210,7 +210,7 @@ e.g. /read 120931290</i>'''
             await update.effective_message.reply_text(reply_text, parse_mode='HTML') # <code> allows copy-paste by clicking
     
     except Exception as e:
-        print(f'🔴 Error in /checkinbox: {e}')
+        print(f'🔴 Error in /check: {e}')
         await update.effective_message.reply_text('⚠️ Error fetching messages.')
 
 
