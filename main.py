@@ -4,7 +4,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from dotenv import load_dotenv
 
 #scripts
-from handlers import start, help, temp_mail, check_inbox, read_mail, dispose, broadcast, unknown_command_handler
+from handlers import start, help, temp_mail, check_inbox, read_mail, dispose, broadcast, find_user, unknown_command_handler
 import keep_alive
 
 
@@ -31,6 +31,7 @@ if __name__ == '__main__':
     application.add_handler(CommandHandler('checkinbox', check_inbox))
     application.add_handler(CommandHandler('read', read_mail))
     application.add_handler(CommandHandler('dispose', dispose))
+    application.add_handler(CommandHandler('finduser', find_user))
     application.add_handler(CommandHandler('broadcast', broadcast))
     # this one filters invalid /COMMANDS.
     application.add_handler(MessageHandler(filters.TEXT, unknown_command_handler))

@@ -1,3 +1,4 @@
+import sqlite3
 import html
 import httpx # if using requests instead, the bot would handle one request at a time only
 import os
@@ -14,7 +15,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-# == NOTIFIES THE USER WHEN THEIR EMAIL IS EXPIRED/ABOUT TO EXPIRE == ##
+## <-- NOTIFIES THE USER WHEN THEIR EMAIL IS EXPIRED/ABOUT TO EXPIRE --> ##
 async def sixty_minutes_left(context: ContextTypes.DEFAULT_TYPE) -> None:
     job = context.job
     await context.bot.send_message(
@@ -40,14 +41,14 @@ async def zero_minutes_left(context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-## == STARTS THE BOT == ##
+## <-- STARTS THE BOT --> ##
 # no need to import AsyncIO module since ApplicationBuilder is built on top of async  
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     db.add_user(user.id, user.username)
     await update.effective_message.reply_text('🌐 <b>System is online!\n<i>Awaiting instructions...</i>\nType /help for a list of commands.</b>', parse_mode='HTML')
 
-## == LISTS COMMANDS == ##
+## <-- LISTS COMMANDS --> ##
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     help_text = '''
     🟢 <b>Available Commands:</b>
@@ -72,10 +73,13 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     /broadcast [message]
         └── 📢 <i>Admin Only</i> 🔐
+    
+    /finduser [username]
+        └── 🔎 <i>Admin Only</i> 🔐
     '''
     await update.effective_message.reply_text(help_text, parse_mode='HTML')
 
-## == CREATES TEMP EMAIL == ##
+## <-- CREATES TEMP EMAIL --> ##
 async def temp_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # GUERRILLA MAIL API ENDPOINT
     url = "https://api.guerrillamail.com/ajax.php?f=get_email_address"
@@ -148,7 +152,7 @@ async def temp_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text('⚠️ API Error. Try again.')
 
 
-## == CHECKS INBOX == ##
+## <-- CHECKS INBOX --> ##
 async def check_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # retrieve session id
     sid_token = context.user_data.get('sid_token')
@@ -203,7 +207,7 @@ e.g. /read 120931290</i>'''
         await update.effective_message.reply_text('⚠️ Error fetching messages.')
 
 
-## == READS MESSAGE BODY == ##
+## <-- READS MESSAGE BODY --> ##
 async def read_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # check if the user typed an id
@@ -261,7 +265,7 @@ async def read_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         print(f'🔴 Error in /read: {e}')
         await update.effective_message.reply_text('⚠️ Error reading message.\nCheck the Message ID.')
 
-## == DELETES TEMP EMAIL == ##
+## <-- DELETES TEMPORARY EMAIL ADDRESS --> ##
 async def dispose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # get current data
     sid_token = context.user_data.get('sid_token')
@@ -295,9 +299,9 @@ async def dispose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             context.user_data.clear()
             
             await update.effective_message.reply_text(
-                f"🗑️ <b>Identity Destroyed!</b>\n"
-                f"The address <code>{email_address}</code> has been disposed.\n"
-                f"<i>Type /tempmail to generate a fresh identity.</i>",
+                f'🗑️ <b>Identity Destroyed!</b>\n'
+                f'The address <code>{email_address}</code> has been disposed.\n'
+                f'<i>Type /tempmail to generate a fresh identity.</i>',
                 parse_mode='HTML'
             )
 
@@ -305,7 +309,7 @@ async def dispose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         print(f"🔴 Error in /dispose: {e}")
         await update.effective_message.reply_text("⚠️ Error disposing email.")
 
-## == SENDS MESSAGE TO ALL USERS (Admin Only) == ##
+## <-- SENDS MESSAGE TO ALL USERS (Admin Only) --> ##
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # get update.effective_user.id and compare to MY_CHAT_ID from .env
     # if they don't match, reply "⛔ Access Denied." and return
@@ -319,7 +323,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text('⛔ Access Denied.')
         return
     
-    # validation to check if the message is empty
+    # check if the message is empty
     if len(context.args) == 0:
         await update.effective_message.reply_text('Usage: /broadcast [message]')
         return
@@ -339,8 +343,63 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     await update.effective_message.reply_text('✅ <i>Broadcast complete.</i>', parse_mode='HTML')
 
+## <-- FETCHES USER_ID BY TELEGRAM USERNAME (Admin Only) --> ##
+async def find_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # pretty much what check_db.py does but as a command
 
-## == HANDLES INVALID COMMANDS == ##
+    admin_id = int(os.getenv('MY_CHAT_ID'))
+    sender_id = update.effective_user.id
+    
+    # security check
+    if sender_id != admin_id:
+        await update.effective_message.reply_text('⛔ Access Denied.')
+        return
+    
+    # check if the message is empty
+    if len(context.args) == 0:
+        await update.effective_message.reply_text('Usage: /find_user [username]')
+        return
+    
+    # first thing written after /finduser will be taken as username
+    target_username = context.args[0]
+    
+    with sqlite3.connect('bot.db') as conn:
+        cursor = conn.cursor()
+        # SQL 'LIKE' operator with % wildcards
+        # %john% means 'it doesn't matter what comes' 
+        # before or after 'john', return it anyway
+        # searching for 'john' will find 'john_doe', 'big_john', etc. 
+        cursor.execute(
+            '''
+                SELECT * FROM users
+                WHERE username LIKE ?
+            ''',
+        (f'%{target_username}%',)) 
+        # this comma means it's a tuple with one item
+        # ('target_username',) <= tuple
+        # ('target_username') <= string inside parentheses
+        # so it plugs '?' to target_username as a whole word
+        # instead of treating every letter as a separate parameter
+
+        rows = cursor.fetchall()
+
+    if not rows:
+        await update.effective_message.reply_text(f"❌ No users found matching '<i>{target_username}</i>'", parse_mode='HTML')
+        return
+
+    # format output
+    reply_text = f'<b>🔎 Found {len(rows)} match(es):</b>\n\n'
+
+    for row in rows:
+        # read the init_db() from db.py to check the columns
+        user_id = row[0]
+        username = row[1]
+
+        reply_text += f'🆔 <code>{user_id}</code> | 👤 @{username}\n'
+ 
+    await update.effective_message.reply_text(reply_text, parse_mode='HTML')
+
+## <-- HANDLES INVALID COMMANDS --> ##
 async def unknown_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # effective_message helper makes sure the code grabs the text object itself no matter if it's
     # a new message, and edit, or a channel post
