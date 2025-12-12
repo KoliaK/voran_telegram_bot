@@ -6,7 +6,6 @@
 
 import sqlite3
 import html
-import httpx # if using requests instead, the bot would handle one request at a time only
 import os
 import re
 from telegram import Update
@@ -14,12 +13,7 @@ from telegram.ext import ContextTypes
 
 # scripts
 import db
-
-# disguise the request to the API
-# this tells the server: "I am Chrome on Windows, trust me."
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-}
+import service
 
 ## <-- NOTIFIES THE USER WHEN THEIR EMAIL IS EXPIRED/ABOUT TO EXPIRE --> ##
 async def sixty_minutes_left(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -88,75 +82,66 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 ## <-- CREATES TEMP EMAIL --> ##
 async def temp_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # GUERRILLA MAIL API ENDPOINT
-    url = "https://api.guerrillamail.com/ajax.php?f=get_email_address"
 
-    try:
-        # httpx does not follow redirects by default
-        # follow_redirects=True is necessary so it
-        # doesn't stop after a 301 Redirect
-        async with httpx.AsyncClient(follow_redirects=True, headers=HEADERS) as client:
-            response = await client.get(url)
-            data = response.json()
-            # check the raw data if needed:
-            # print("🔍 RAW DATA:", data)
+    identity = await service.create_email_identity()
 
-            email_address = data['email_addr']
-            sid_token = data['sid_token']
+    if not identity:
+        await update.effective_message.reply_text('⚠️ API Error. Could not generate email')
+        return
 
-            # save session ID (necessary for GuerrillaMail)
-            context.user_data['temp_email'] = email_address
-            context.user_data['sid_token'] = sid_token
+    # this are dict keys from create_email_identity()
+    email_address = identity['email']
+    sid_token = identity['sid_token']
 
-            # scheduling the alarms
-            user_id = update.effective_user.id
-            chat_id = update.effective_chat.id
+    # save session ID (necessary for GuerrillaMail)
+    context.user_data['temp_email'] = email_address
+    context.user_data['sid_token'] = sid_token
 
-            # first alarm
-            context.job_queue.run_once(
-                sixty_minutes_left, 
-                1, 
-                chat_id=chat_id,
-                name=f"{user_id}_first_warning" # Unique Name
-            )
+    # scheduling the alarms
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
 
-            # second alarm
-            context.job_queue.run_once(
-                five_minutes_left, 
-                3300, 
-                chat_id=chat_id,
-                name=f"{user_id}_second_warning" # Unique Name
-            )
-            # third alarm
-            context.job_queue.run_once(
-                zero_minutes_left, 
-                3600, 
-                chat_id=chat_id,
-                name=f"{user_id}_expired" # Unique Name
-            )
-            # session Log
-            print(
-                f'''
-                ==DEBUG==
-                🛡️ New Session created at:
-                📧 Address: {email_address}
-                🔑 Session ID: {sid_token}
-                '''
-            )
+    # first alarm
+    context.job_queue.run_once(
+        sixty_minutes_left, 
+        1, 
+        chat_id=chat_id,
+        name=f"{user_id}_first_warning" # Unique Name
+    )
 
-            await update.effective_message.reply_text(
-                f'🛡️ <b>Privacy Shield Active (GuerrillaMail)</b>\n\n'
-                f'📧 Address: <code>{email_address}</code>\n'
-                '                               └── Click here to copy the email address!\n'
-                f'<i>To see your inbox, type /check.</i>',
-                parse_mode='HTML' # <code> allows copy-paste by clicking
-            )
-    except Exception as e:
-        print(f'🔴 Error in /tempmail: {e}')
-        # if any response exists, print the raw text to see if it's an HTML error page
-        if 'response' in locals():
-            print(f"🔴 Server Response: {response.text}")
-        await update.effective_message.reply_text('⚠️ API Error. Try again.')
+    # second alarm
+    context.job_queue.run_once(
+        five_minutes_left, 
+        3300, 
+        chat_id=chat_id,
+        name=f"{user_id}_second_warning" # Unique Name
+    )
+
+    # third alarm
+    context.job_queue.run_once(
+        zero_minutes_left, 
+        3600, 
+        chat_id=chat_id,
+        name=f"{user_id}_expired" # Unique Name
+    )
+
+    # session Log
+    print(
+        f'''
+        ==DEBUG==
+        🛡️ New Session created at:
+        📧 Address: {email_address}
+        🔑 Session ID: {sid_token}
+        '''
+    )
+
+    await update.effective_message.reply_text(
+        f'🛡️ <b>Privacy Shield Active (GuerrillaMail)</b>\n\n'
+        f'📧 Address: <code>{email_address}</code>\n'
+        '                               └── Click here to copy the email address!\n'
+        f'<i>To see your inbox, type /check.</i>',
+        parse_mode='HTML' # <code> allows copy-paste by clicking
+    )
 
 
 ## <-- CHECKS INBOX --> ##
@@ -169,49 +154,34 @@ async def check_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.effective_message.reply_text("❌ No active session. Type /tempmail first.")
         return
 
-    # fetch inbox based on the session id token
-    url = f"https://api.guerrillamail.com/ajax.php?f=get_email_list&offset=0&sid_token={sid_token}"
-
-    try:
-        async with httpx.AsyncClient(follow_redirects=True, headers=HEADERS) as client:
-            response = await client.get(url)
-            data = response.json()
-            # check the raw data if needed to find the API endpoints:
-            # print("🔍 RAW DATA:", data)
-
-            # guerrillamail returns a 'list' key
-            messages = data.get('list', [])
-
-            # guerrillamail usually sends a welcome email
+    messages = await service.fetch_inbox(sid_token)
+    
+    # guerrillamail usually sends a welcome email
             # so list is rarely empty
             # check if empty anyway just to make sure
-            if not messages or len(messages) == 0:
-                await update.effective_message.reply_text(f'📭 Inbox empty for {email_address}')
-                return
-            
-            # loop through messages
-            reply_text = f"📬 <b>Inbox for</b> {email_address}\n"
-            # limit to 5 emails to avoid spamming chat
-            for msg in messages[:5]: 
-                msg_id = msg['mail_id']
-                sender = msg['mail_from']
-                subject = msg['mail_subject']
-                reply_text += f'''
+    if not messages or len(messages) == 0:
+        await update.effective_message.reply_text(f'📭 Inbox empty for {email_address}')
+        return
+
+    reply_text = f"📬 <b>Inbox for</b> {email_address}\n"
+    # loop through messages
+    # limit to 5 emails to avoid spamming chat
+    for msg in messages[:5]: 
+        msg_id = msg['mail_id']
+        sender = msg['mail_from']
+        subject = msg['mail_subject']
+        reply_text += f'''
 ------------------------------------
 🆔 Message ID: <code>{msg_id}</code>
 👤 From: <code>{sender}</code>
 📝 Subject: <b>{subject}</b>'''
                 
-            reply_text += '''
+    reply_text += '''
 ------------------------------------
 <i>To read a message content, type /read [message_id]
 e.g. /read 120931290</i>'''
 
-            await update.effective_message.reply_text(reply_text, parse_mode='HTML') # <code> allows copy-paste by clicking
-    
-    except Exception as e:
-        print(f'🔴 Error in /check: {e}')
-        await update.effective_message.reply_text('⚠️ Error fetching messages.')
+    await update.effective_message.reply_text(reply_text, parse_mode='HTML') # <code> allows copy-paste by clicking
 
 
 ## <-- READS MESSAGE BODY --> ##
@@ -220,6 +190,7 @@ async def read_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # check if the user typed an id
     if len(context.args) == 0:
         await update.effective_message.reply_text('Usage: /read [message_id]')
+        return
 
     mail_id = context.args[0]
 
@@ -229,48 +200,39 @@ async def read_mail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text("❌ No active session. Type /tempmail first.")
         return
     
-    # fetch inbox based on the session id token
-    url = f"https://api.guerrillamail.com/ajax.php?f=fetch_email&email_id={mail_id}&sid_token={sid_token}"
+    data = await service.fetch_email_content(mail_id, sid_token)
 
-    try:
-        async with httpx.AsyncClient(follow_redirects=True, headers=HEADERS) as client:
-            response = await client.get(url)
-            data = response.json()
+    if not data:
+        await update.effective_message.reply_text('⚠️ Error reading message. Check the Message ID.')
+        return
 
-            # check the raw data if needed:
-            print("🔍 RAW DATA:", data)
+    # extract the mail body
+    email_body = data.get('mail_body', 'No content.')
+    email_subject = data.get('mail_subject', 'No subject')
+    mail_from = data.get('mail_from', 'No address')
+    
+    # THIS IS IMPORTANT TO FILTER DOWN HTML TAGS 
+    # OTHERWISE THAT WOULD RETURN A READING ERROR
 
-            # extract the mail body
-            email_body = data.get('mail_body', 'No content.')
-            email_subject = data.get('mail_subject', 'No subject')
-            mail_from = data.get('mail_from', 'No address')
-            
-            # THIS IS IMPORTANT TO FILTER DOWN HTML TAGS 
-            # OTHERWISE THAT WOULD RETURN A READING ERROR
+    # simple replace for some tags
+    temp_body = email_body.replace('<br>', '\n').replace('<br/>', '\n').replace('</p>', '\n')
 
-            # simple replace for some tags
-            temp_body = email_body.replace('<br>', '\n').replace('<br/>', '\n').replace('</p>', '\n')
+    # regex to strip ALL remaining HTML tags (<div..., <span..., etc.)
+    clean_body = re.sub('<[^<]+?>', '', temp_body)
 
-            # regex to strip ALL remaining HTML tags (<div..., <span..., etc.)
-            clean_body = re.sub('<[^<]+?>', '', temp_body)
+    # escape special characters (e.g. if email contains "x < y", Telegram breaks without this)
+    safe_body = html.escape(clean_body)
+    safe_subject = html.escape(email_subject)
 
-            # escape special characters (e.g. if email contains "x < y", Telegram breaks without this)
-            safe_body = html.escape(clean_body)
-            safe_subject = html.escape(email_subject)
+    # wrap the email body in <pre> ... </pre> to get a pre-formatted text with a dark background look for the email body
+    # :4000 makes sure the response does not surpass the Telegram's 4096 character limit per message
+    final_message = f'📤 Opening message from: <code>{mail_from}</code>\n\n📝 Subject: <b>{safe_subject}</b>\n\n<pre>{safe_body[:4000]}</pre>'
 
-            # wrap the email body in <pre> ... </pre> to get a pre-formatted text with a dark background look for the email body
-            # :4000 makes sure the response does not surpass the Telegram's 4096 character limit per message
-            final_message = f'📤 Opening message from: <code>{mail_from}</code>\n\n📝 Subject: <b>{safe_subject}</b>\n\n<pre>{safe_body[:4000]}</pre>'
-
-            await update.effective_message.reply_text(
-                
-                # safe to use raw HTML parsing here because the bad HTML tags were cleaned with regex, otherwise it'd return an error in some cases since Telegram cannot correctly process some tags such as <br>, <h1>, <span>, etc. Without regex, just use parse_mode=None
-                final_message,
-                parse_mode='HTML'
-            )
-    except Exception as e:
-        print(f'🔴 Error in /read: {e}')
-        await update.effective_message.reply_text('⚠️ Error reading message.\nCheck the Message ID.')
+    await update.effective_message.reply_text(
+        # safe to use raw HTML parsing here because the bad HTML tags were cleaned with regex, otherwise it'd return an error in some cases since Telegram cannot correctly process some tags such as <br>, <h1>, <span>, etc. Without regex, just use parse_mode=None
+        final_message,
+        parse_mode='HTML'
+    )
 
 ## <-- DELETES TEMPORARY EMAIL ADDRESS --> ##
 async def dispose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -282,39 +244,35 @@ async def dispose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text("❌ You don't have an active session to dispose.")
         return
 
-    # call GuerrillaMail to destroy it on server
-    url = f"https://api.guerrillamail.com/ajax.php?f=forget_me&email_addr={email_address}&sid_token={sid_token}"
+    success = await service.destroy_identity(sid_token, email_address)
 
-    try:
-        # use HEADERS just in case
-        async with httpx.AsyncClient(follow_redirects=True, headers=HEADERS) as client:
-            await client.get(url) # we don't really care about the response, just that we sent it for closing the session.
-            
-            # --- KILL THE TIMERS TO AVOID PHANTOM NOTIFICATIONS ---
-            user_id = str(update.effective_user.id)
-            
-            # Find jobs by the names we gave them
-            jobs_to_cancel = context.job_queue.get_jobs_by_name(f'{user_id}_first_warning') + \
-                    context.job_queue.get_jobs_by_name(f'{user_id}_second_warning') + \
-                    context.job_queue.get_jobs_by_name(f'{user_id}_expired')
-            
-            for job in jobs_to_cancel:
-                job.schedule_removal() # Stop the countdown
+    if success:
+        # --- KILL THE TIMERS TO AVOID PHANTOM NOTIFICATIONS ---
+        user_id = str(update.effective_user.id)
 
-            # CLEAR LOCAL MEMORY
-            # This wipes the data for this user
-            context.user_data.clear()
-            
-            await update.effective_message.reply_text(
-                f'🗑️ <b>Identity Destroyed!</b>\n'
-                f'The address <code>{email_address}</code> has been disposed.\n'
-                f'<i>Type /tempmail to generate a fresh identity.</i>',
-                parse_mode='HTML'
-            )
+        # cancel jobs
+        jobs_to_cancel = (
+            context.job_queue.get_jobs_by_name(f'{user_id}_first_warning') +
+            context.job_queue.get_jobs_by_name(f'{user_id}_second_warning') +
+            context.job_queue.get_jobs_by_name(f'{user_id}_expired')
+        )
+        
+        for job in jobs_to_cancel:
+            job.schedule_removal() # Stop the countdown
 
-    except Exception as e:
-        print(f"🔴 Error in /dispose: {e}")
-        await update.effective_message.reply_text("⚠️ Error disposing email.")
+        # CLEAR LOCAL MEMORY
+        # This wipes the data for this user
+        context.user_data.clear()
+        
+        await update.effective_message.reply_text(
+            f'🗑️ <b>Identity Destroyed!</b>\n'
+            f'The address <code>{email_address}</code> has been disposed.\n'
+            f'<i>Type /tempmail to generate a fresh identity.</i>',
+            parse_mode='HTML'
+        )
+
+    else:
+        await update.effective_message.reply_text("⚠️ Error disposing email. API might be down")
 
 ## <-- SENDS MESSAGE TO ALL USERS (Admin Only) --> ##
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
